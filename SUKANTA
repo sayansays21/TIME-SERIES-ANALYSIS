@@ -1,0 +1,104 @@
+data=read.csv("C:\\Users\\HP\\Downloads\\aaa.csv")
+data
+insample=data[1:120,]
+insample
+outsample=data[121:161,]
+library(tseries)
+library(urca)
+library(forecast)
+#check for stationary
+#Ho:non_stationary
+#H1:stationary
+adf=ur.df(insample[,2],type=c("trend"),lags=30,selectlags = c("AIC"))
+summary(adf)
+####still non stationary
+del_Z_T=insample[2:120,2]-insample[1:119,2]
+del_Z_T
+adf_1=ur.df(del_Z_T,type=c("trend"),lags=30,selectlags = c("AIC"))
+summary(adf_1)
+#we reject H0 and hence stationary
+
+
+#2) correlogram analysis
+
+#Ho:P1=P2=....=P20=0
+#H1: atleast one non zero
+ACF=acf(del_Z_T,lag.max = 20,plot = T)
+summary(ACF)
+ACF$acf
+
+#ljung box test for ACF
+q=c()
+q_statistics=c()
+p_value=c()
+for (i in 1:20) {
+  q=Box.test(del_Z_T,lag = i, type = "Ljung-Box")
+  q_statistics[i]=as.numeric(q$statistic)
+  p_value[i]=q$p.value
+}
+result=ifelse(p_value>0.05,"ACCEPTED","REJECTED")
+acf_check_table=data.frame(q_statistics, p_value, result)
+acf_check_table
+
+
+##################from the table "ACF" cuts after lag 3
+#############so its a MA(3) model
+
+
+
+
+################lets check for PACF
+pacf=acf(del_Z_T,lag.max = 20,plot=T,type = "partial")
+pacf_statistics=sqrt(length(del_Z_T))*as.numeric(pacf$acf)
+result_1=ifelse(abs(pacf_statistics)>1.96,"REJECTED","ACCEPTED")
+result_1
+
+
+
+#############so we find that it is also a AR(1) model
+
+
+
+
+#####So we will check which model fits welll
+
+
+
+model_AR=arima(del_Z_T,c(1,0,0))
+model_AR$aic
+model_MA=arima(del_Z_T,c(0,0,3))
+model_MA$aic
+
+####since MA(3) model has lowest AIC , so MA(3) model
+
+######residual diagonostics
+q_error=c()
+q_statistics_error=c()
+p_value_error=c()
+for (i in 1:20) {
+  q_error=Box.test(model_MA$residuals,lag = i,type = "Ljung-Box")
+  q_statistics_error[i]=as.numeric(q_error$statistic)
+  p_value_error[i]=q_error$p.value
+}
+result_error=ifelse(p_value_error>0.05,"ACCEPTED","REJECTED")
+acf_check_table_error=data.frame(q_statistics_error,p_value_error,result_error)
+acf_check_table_error
+
+######## model is adequate
+
+###############forecasting
+org=data[2:161,2]-data[1:160,2]
+length(org)
+
+
+model_MA$coef
+a=forecast(model_MA,h=length(outsample[,2]))
+plot(a)
+lines(org,col="red")
+
+
+########EXTRASSS
+accuracy(a$mean,org[120:160])
+
+MSFE=(1/length(outsample[,2]))*(sum((org[120:160]-as.numeric(a$mean))^2))
+MSFE
